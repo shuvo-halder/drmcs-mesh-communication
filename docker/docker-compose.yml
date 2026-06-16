@@ -1,0 +1,113 @@
+version: '3.8'
+
+services:
+  drmcs-node1:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    container_name: drmcs-node1
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+      - "8082:8082"
+    environment:
+      - NODE_NAME=node1
+      - NODE_PORT=8080
+    volumes:
+      - node1-data:/app/data
+      - node1-transfers:/app/transfers
+    networks:
+      - drmcs-mesh
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+
+  drmcs-node2:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    container_name: drmcs-node2
+    ports:
+      - "9080:8080"
+      - "9081:8081"
+      - "9082:8082"
+    environment:
+      - NODE_NAME=node2
+      - NODE_PORT=8080
+    volumes:
+      - node2-data:/app/data
+      - node2-transfers:/app/transfers
+    networks:
+      - drmcs-mesh
+    depends_on:
+      - drmcs-node1
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+
+  drmcs-node3:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    container_name: drmcs-node3
+    ports:
+      - "10080:8080"
+      - "10081:8081"
+      - "10082:8082"
+    environment:
+      - NODE_NAME=node3
+      - NODE_PORT=8080
+    volumes:
+      - node3-data:/app/data
+      - node3-transfers:/app/transfers
+    networks:
+      - drmcs-mesh
+    depends_on:
+      - drmcs-node1
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+
+  drmcs-analytics:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.analytics
+    container_name: drmcs-analytics
+    ports:
+      - "8090:8090"
+    environment:
+      - NODE_API_URL=http://drmcs-node1:8080
+    volumes:
+      - analytics-data:/app/data
+    networks:
+      - drmcs-mesh
+    depends_on:
+      - drmcs-node1
+
+  drmcs-frontend:
+    image: node:18-alpine
+    container_name: drmcs-frontend
+    ports:
+      - "3000:3000"
+    working_dir: /app
+    volumes:
+      - ../frontend:/app
+    command: sh -c "npm install && npm start"
+    networks:
+      - drmcs-mesh
+    depends_on:
+      - drmcs-analytics
+      - drmcs-node1
+
+volumes:
+  node1-data:
+  node1-transfers:
+  node2-data:
+  node2-transfers:
+  node3-data:
+  node3-transfers:
+  analytics-data:
+
+networks:
+  drmcs-mesh:
+    driver: bridge
