@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import TopologyView from './components/TopologyView';
+import useEventStream from './hooks/useEventStream';
 
 // API base URLs
 const BACKEND_API = 'http://localhost:8080';
 const ANALYTICS_API = 'http://localhost:8090';
+const ANALYTICS_SSE = 'http://localhost:8090/api/v2/ws';
 
 // Styles
 const styles = {
@@ -191,6 +194,15 @@ function App() {
   const [metrics, setMetrics] = useState(null);
   const [topologyImage, setTopologyImage] = useState('');
   const [loading, setLoading] = useState(true);
+
+  // Real-time SSE updates
+  const handleSSEEvent = useCallback((data) => {
+    if (data.type === 'metrics_update' && data.data) {
+      setMetrics(prev => ({ ...prev, ...data.data }));
+    }
+  }, []);
+
+  useEventStream(ANALYTICS_SSE, handleSSEEvent);
 
   // Form states
   const [msgReceiver, setMsgReceiver] = useState('');
@@ -533,19 +545,7 @@ function App() {
 
       {/* Topology Tab */}
       <div style={activeTab === 'topology' ? styles.activePanel : styles.panel}>
-        <div style={styles.topologyContainer}>
-          <div style={styles.cardTitle}>Network Topology Visualization</div>
-          {topologyImage ? (
-            <img src={topologyImage} alt="Network Topology" style={styles.topologyImg} />
-          ) : (
-            <div style={{ padding: '40px', color: '#8899aa' }}>
-              <p>Loading topology visualization...</p>
-              <p style={{ fontSize: '12px', marginTop: '10px' }}>
-                Ensure the analytics server is running and nodes are connected
-              </p>
-            </div>
-          )}
-        </div>
+        <TopologyView />
       </div>
 
       {/* Analytics Tab */}

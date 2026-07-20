@@ -1,0 +1,116 @@
+# ──────────────────────────────────────────────
+# DRMCS - Disaster Response Mesh Communication System
+# Comprehensive .gitignore for Go + Python + React + Docker
+# ──────────────────────────────────────────────
+
+# ── Go ──────────────────────────────────────
+backend/drmcsd
+backend/drmcsd.exe
+backend/*.exe
+backend/*.test
+backend/*.out
+backend/vendor/
+backend/proto/meshpb/
+
+# ── Python ──────────────────────────────────
+analytics/__pycache__/
+analytics/*/__pycache__/
+analytics/**/__pycache__/
+analytics/*.pyc
+analytics/*.pyo
+analytics/*.egg-info/
+analytics/dist/
+analytics/build/
+analytics/.pytest_cache/
+analytics/.coverage
+analytics/htmlcov/
+analytics/coverage.xml
+
+# ── Node.js / React Frontend ────────────────
+frontend/node_modules/
+frontend/build/
+frontend/.cache/
+# frontend/package-lock.json
+frontend/yarn.lock
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# ── Environment & Config ───────────────────
+.env
+.env.*
+*.env
+*.env.local
+*.secret
+
+# ── OS Files ───────────────────────────────
+.DS_Store
+.DS_Store?
+Thumbs.db
+desktop.ini
+ehthumbs.db
+*.swp
+*.swo
+*~
+~$*
+*.backup
+
+# ── IDE / Editor ───────────────────────────
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+.project
+.classpath
+.settings/
+.netbeans/
+
+# ── Docker ─────────────────────────────────
+docker/data/
+docker/*.log
+docker/volumes/
+
+# ── Data / Runtime ─────────────────────────
+backend/data/
+backend/transfers/
+backend/tmp_*
+analytics/data/
+analytics/transfers/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# ── Logs ───────────────────────────────────
+*.log
+logs/
+**/logs/
+
+# ── Binaries / Build Artifacts ────────────
+*.exe
+*.dll
+*.so
+*.dylib
+*.o
+*.a
+*.class
+
+# ── Terraform / IaC ───────────────────────
+*.tfstate
+*.tfstate.*
+*.tfvars
+.terraform/
+
+# ── Secrets (do NOT commit) ────────────────
+*.key
+*.pem
+*.cert
+*.crt
+private_key*
+keystore*
+*.keystore
