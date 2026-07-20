@@ -1,6 +1,7 @@
 """FastAPI server for DRMCS Analytics Dashboard"""
 
 import asyncio
+import httpx
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -24,15 +25,18 @@ logger = logging.getLogger(__name__)
 collector = MetricsCollector()
 visualizer = TopologyVisualizer()
 active_websockets: List[WebSocket] = []
+collection_task: Optional[asyncio.Task] = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Start background tasks on startup"""
-    task = asyncio.create_task(collector.continuous_collection(10))
+    global collection_task
+    collection_task = asyncio.create_task(collector.continuous_collection(10))
     logger.info("Analytics server started")
     yield
-    task.cancel()
+    if collection_task:
+        collection_task.cancel()
     logger.info("Analytics server stopped")
 
 
@@ -113,7 +117,10 @@ async def get_network_topology():
 async def get_topology_image():
     """Get network topology as base64 image"""
     topology = await get_network_topology()
-    img_base64 = visualizer.render_topology_image(topology.nodes, topology.edges)
+    img_base64 = visualizer.render_topology_image(
+        list(topology.nodes) if topology.nodes else [],
+        list(topology.edges) if topology.edges else []
+    )
     return JSONResponse(content={"image": img_base64, "format": "png"})
 
 
@@ -217,25 +224,39 @@ async def websocket_endpoint(websocket: WebSocket):
 
     try:
         while True:
-            # Send metrics update every 5 seconds
-            metrics = collector.get_latest_metrics()
-            if metrics:
-                await websocket.send_json(metrics.model_dump())
-            await asyncio.sleep(5)
+            # Send heartbeat every 15s to detect dead connections
+            try:
+                metrics = collector.get_latest_metrics()
+                payload = {
+                    "type": "metrics_update",
+                    "data": metrics.model_dump() if metrics else None,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                await websocket.send_json(payload)
+                await asyncio.sleep(5)
+            except asyncio.CancelledError:
+                break
     except WebSocketDisconnect:
-        active_websockets.remove(websocket)
         logger.info("WebSocket client disconnected")
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
+    finally:
         if websocket in active_websockets:
             active_websockets.remove(websocket)
+        logger.info(f"WebSocket cleaned up. Active connections: {len(active_websockets)}")
 
 
 @app.get("/api/v2/node/list")
 async def get_all_nodes():
     """Get list of all discovered nodes"""
-    peers = await collector.collect_peers()
-    node_info = await collector.collect_node_info()
+    try:
+        peers = await collector.collect_peers()
+    except Exception:
+        peers = []
+    try:
+        node_info = await collector.collect_node_info()
+    except Exception:
+        node_info = None
 
     nodes = []
     if node_info:
@@ -257,7 +278,21 @@ async def get_all_nodes():
     return {"nodes": nodes}
 
 
+@app.get("/api/v2/alerts/types")
+async def get_alert_types():
+    """Get available alert types"""
+    return {
+        "alert_types": [
+            {"type": "medical_emergency", "label": "Medical Emergency", "priority": 2},
+            {"type": "fire_alert", "label": "Fire Alert", "priority": 2},
+            {"type": "flood_warning", "label": "Flood Warning", "priority": 1},
+            {"type": "rescue_request", "label": "Rescue Request", "priority": 2},
+            {"type": "missing_person", "label": "Missing Person", "priority": 1},
+            {"type": "emergency", "label": "General Emergency", "priority": 0},
+        ]
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
-    import httpx  # Required for alerts summary endpoint
-    uvicorn.run(app, host="0.0.0.0", port=8090)
+    uvicorn.run("analytics.api.server:app", host="0.0.0.0", port=8090, reload=True)
