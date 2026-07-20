@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/drmcs/backend/internal/models"
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/glebarez/go-sqlite"
 )
 
 // SQLiteStore implements data persistence using SQLite
@@ -16,7 +16,7 @@ type SQLiteStore struct {
 
 // NewSQLiteStore creates a new SQLite database store
 func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
-	db, err := sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_busy_timeout=5000")
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}

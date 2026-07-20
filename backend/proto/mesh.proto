@@ -1,0 +1,145 @@
+syntax = "proto3";
+
+package drmcs.mesh;
+
+option go_package = "github.com/drmcs/backend/proto/meshpb";
+
+// MeshNode represents a node in the mesh network
+message MeshNode {
+  string node_id = 1;
+  string node_name = 2;
+  string ip_address = 3;
+  int32 port = 4;
+  bytes public_key = 5;
+  string status = 6;
+  int64 last_seen = 7;
+  int32 hop_count = 8;
+}
+
+// MeshMessage represents a routed message between nodes
+message MeshMessage {
+  string message_id = 1;
+  string sender_id = 2;
+  string receiver_id = 3;
+  int64 timestamp = 4;
+  string content = 5;
+  string msg_type = 6;
+  int32 priority = 7;
+  string status = 8;
+  int32 hop_count = 9;
+  bytes signature = 10;
+}
+
+// RouteRequest (RREQ) for AODV route discovery
+message RouteRequest {
+  uint32 request_id = 1;
+  string source_id = 2;
+  string destination_id = 3;
+  uint32 sequence_num = 4;
+  int32 hop_count = 5;
+  int32 ttl = 6;
+  uint32 broadcast_id = 7;
+}
+
+// RouteReply (RREP) for AODV route reply
+message RouteReply {
+  uint32 request_id = 1;
+  string source_id = 2;
+  string destination_id = 3;
+  uint32 sequence_num = 4;
+  int32 hop_count = 5;
+  int64 lifetime = 6;
+}
+
+// DiscoveryPacket for UDP peer discovery
+message DiscoveryPacket {
+  string node_id = 1;
+  string node_name = 2;
+  int32 port = 3;
+  bytes public_key = 4;
+  int64 timestamp = 5;
+  bytes signature = 6;
+}
+
+// AlertMessage for emergency alerts
+message AlertMessage {
+  string alert_id = 1;
+  string sender_id = 2;
+  int64 timestamp = 3;
+  string alert_type = 4;
+  int32 priority = 5;
+  string message = 6;
+  string location = 7;
+  int64 expires_at = 8;
+}
+
+// FileChunk for chunked file transfer
+message FileChunk {
+  int32 chunk_id = 1;
+  string file_id = 2;
+  bytes data = 3;
+  string checksum = 4;
+  int32 size = 5;
+}
+
+// FileTransfer metadata
+message FileTransfer {
+  string file_id = 1;
+  string sender_id = 2;
+  string filename = 3;
+  int64 file_size = 4;
+  string content_type = 5;
+  int32 chunk_count = 6;
+  string checksum = 7;
+  int64 expires_at = 8;
+  string status = 9;
+  double progress = 10;
+}
+
+// AnalyticsData for network metrics
+message AnalyticsData {
+  string node_id = 1;
+  int64 timestamp = 2;
+  int32 active_nodes = 3;
+  int64 msg_sent = 4;
+  int64 msg_received = 5;
+  int64 msg_dropped = 6;
+  double avg_latency = 7;
+  double packet_loss = 8;
+  int32 file_transfers = 9;
+  int32 alerts_sent = 10;
+  int32 alerts_received = 11;
+}
+
+// MeshService defines the gRPC service for mesh communication
+service MeshService {
+  // SendMessage sends a message to a destination node
+  rpc SendMessage(MeshMessage) returns (MessageAck);
+  
+  // RouteDiscovery initiates AODV route discovery
+  rpc RouteDiscovery(RouteRequest) returns (RouteReply);
+  
+  // StreamMessages provides a bidirectional stream for real-time messaging
+  rpc StreamMessages(stream MeshMessage) returns (stream MeshMessage);
+  
+  // TransferFile handles chunked file transfer
+  rpc TransferFile(stream FileChunk) returns (TransferStatus);
+  
+  // GetNodeInfo returns node information
+  rpc GetNodeInfo(MeshNode) returns (MeshNode);
+}
+
+// MessageAck is an acknowledgment for message delivery
+message MessageAck {
+  string message_id = 1;
+  string status = 2;
+  int64 timestamp = 3;
+}
+
+// TransferStatus reports file transfer progress
+message TransferStatus {
+  string file_id = 1;
+  double progress = 2;
+  string status = 3;
+  string error = 4;
+}

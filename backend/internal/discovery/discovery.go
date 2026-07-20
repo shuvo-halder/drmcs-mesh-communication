@@ -3,6 +3,7 @@ package discovery
 import (
 	"crypto/ed25519"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net"
 	"sync"
@@ -22,25 +23,27 @@ const (
 
 // Service handles peer discovery via UDP broadcast/multicast
 type Service struct {
-	nodeID    string
-	nodeName  string
-	port      int
-	publicKey ed25519.PublicKey
-	peers     map[string]*models.Peer
-	mu        sync.RWMutex
-	stopCh    chan struct{}
+	nodeID     string
+	nodeName   string
+	port       int
+	publicKey  ed25519.PublicKey
+	privateKey ed25519.PrivateKey
+	peers      map[string]*models.Peer
+	mu         sync.RWMutex
+	stopCh     chan struct{}
 }
 
 // NewService creates a new discovery service
-func NewService(nodeName string, port int, pubKey ed25519.PublicKey) *Service {
-	nodeID := crypto.HashContent([]byte(nodeName + ":" + string(rune(port))))
+func NewService(nodeName string, port int, pubKey ed25519.PublicKey, privKey ed25519.PrivateKey) *Service {
+	nodeID := crypto.HashContent([]byte(nodeName + ":" + fmt.Sprintf("%d", port)))
 	return &Service{
-		nodeID:    nodeID,
-		nodeName:  nodeName,
-		port:      port,
-		publicKey: pubKey,
-		peers:     make(map[string]*models.Peer),
-		stopCh:    make(chan struct{}),
+		nodeID:     nodeID,
+		nodeName:   nodeName,
+		port:       port,
+		publicKey:  pubKey,
+		privateKey: privKey,
+		peers:      make(map[string]*models.Peer),
+		stopCh:     make(chan struct{}),
 	}
 }
 
@@ -174,32 +177,29 @@ func (s *Service) broadcast() {
 		case <-s.stopCh:
 			return
 		case <-ticker.C:
-			packet := models.DiscoveryPacket{
-				NodeID:    s.nodeID,
-				NodeName:  s.nodeName,
-				Port:      s.port,
-				PublicKey: s.publicKey,
-				Timestamp: time.Now().Unix(),
-			}
-
-			// Sign the packet
-			dataToSign, _ := json.Marshal(struct {
+			// Build packet data to sign
+			sigData, _ := json.Marshal(struct {
 				NodeID    string `json:"node_id"`
 				NodeName  string `json:"node_name"`
 				Port      int    `json:"port"`
 				PublicKey []byte `json:"public_key"`
 				Timestamp int64  `json:"timestamp"`
 			}{
-				NodeID:    packet.NodeID,
-				NodeName:  packet.NodeName,
-				Port:      packet.Port,
-				PublicKey: packet.PublicKey,
-				Timestamp: packet.Timestamp,
+				NodeID:    s.nodeID,
+				NodeName:  s.nodeName,
+				Port:      s.port,
+				PublicKey: s.publicKey,
+				Timestamp: time.Now().Unix(),
 			})
 
-			// We can't sign here easily without private key, so we'll create a simple signature
-			// In production, inject the private key into discovery service
-			packet.Signature = []byte("placeholder")
+			packet := models.DiscoveryPacket{
+				NodeID:    s.nodeID,
+				NodeName:  s.nodeName,
+				Port:      s.port,
+				PublicKey: s.publicKey,
+				Timestamp: time.Now().Unix(),
+				Signature: crypto.SignMessage(s.privateKey, sigData),
+			}
 
 			data, _ := json.Marshal(packet)
 			conn.Write(data)

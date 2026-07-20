@@ -114,6 +114,9 @@ func (r *Router) HandleRouteRequest(rreq *models.RouteRequest) (*models.RouteRep
 		return reply, true
 	}
 
+	// Add or update reverse route to source
+	r.addRoute(rreq.SourceID, "", rreq.HopCount)
+
 	// Forward RREQ if TTL > 0
 	if rreq.TTL > 0 {
 		r.processRREQ(rreq)
@@ -149,9 +152,14 @@ func (r *Router) GetNextHop(destinationID string) (string, bool) {
 	return route.NextHopID, true
 }
 
-// AddRoute adds or updates a route
+// AddRoute adds or updates a route from a route model
 func (r *Router) AddRoute(route *models.Route) {
 	r.addRoute(route.DestinationID, route.NextHopID, route.HopCount)
+}
+
+// AddRouteDirect adds or updates a route with explicit next-hop info
+func (r *Router) AddRouteDirect(destID, nextHopID string, hopCount int) {
+	r.addRoute(destID, nextHopID, hopCount)
 }
 
 // GetRoutingTable returns all active routes
@@ -203,9 +211,15 @@ func (r *Router) addRoute(destID, nextHopID string, hopCount int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	// If nextHopID is empty, use the destination as its own next hop (direct neighbor)
+	effectiveNextHop := nextHopID
+	if effectiveNextHop == "" {
+		effectiveNextHop = destID
+	}
+
 	route := &models.Route{
 		DestinationID: destID,
-		NextHopID:     nextHopID,
+		NextHopID:     effectiveNextHop,
 		HopCount:      hopCount,
 		SequenceNum:   r.getNextSeqNum(),
 		LastUpdated:   time.Now(),
@@ -213,9 +227,9 @@ func (r *Router) addRoute(destID, nextHopID string, hopCount int) {
 		Status:        models.StatusActive,
 	}
 
-	// Only add if better (shorter) than existing route
+	// Only add if better (shorter) or newer than existing route
 	if existing, exists := r.routes[destID]; exists && existing.Status == models.StatusActive {
-		if existing.HopCount <= hopCount {
+		if existing.HopCount <= hopCount && existing.SequenceNum >= route.SequenceNum {
 			return
 		}
 	}
@@ -224,7 +238,7 @@ func (r *Router) addRoute(destID, nextHopID string, hopCount int) {
 
 	r.notifyListeners(RouteUpdate{
 		DestinationID: destID,
-		NextHopID:     nextHopID,
+		NextHopID:     effectiveNextHop,
 		HopCount:      hopCount,
 		Status:        models.StatusActive,
 	})

@@ -102,13 +102,38 @@ func HashContent(content []byte) string {
 	return hex.EncodeToString(hash[:])
 }
 
-// DeriveSessionKey derives a shared AES key from two public keys using SHA-256
+// DeriveSessionKey derives a shared AES key from two key pairs using SHA-256
+// Both parties derive the same key by sorting public keys before combining
 func DeriveSessionKey(localPrivKey ed25519.PrivateKey, remotePubKey ed25519.PublicKey) ([]byte, error) {
-	sharedSecret, err := ed25519.NewKeyFromSeed(localPrivKey.Seed()).Salt(remotePubKey)
-	if err != nil {
-		return nil, err
+	localPub := localPrivKey.Public().(ed25519.PublicKey)
+
+	// Sort the two public keys lexicographically so both parties derive the same key
+	var combined []byte
+	if compareBytes(localPub, remotePubKey) <= 0 {
+		combined = append(localPub, remotePubKey...)
+	} else {
+		combined = append(remotePubKey, localPub...)
 	}
-	// Use SHA-256 of shared secret as AES key
-	hash := sha256.Sum256(sharedSecret)
+
+	hash := sha256.Sum256(combined)
 	return hash[:], nil
+}
+
+// compareBytes compares two byte slices lexicographically
+func compareBytes(a, b []byte) int {
+	for i := 0; i < len(a) && i < len(b); i++ {
+		if a[i] < b[i] {
+			return -1
+		}
+		if a[i] > b[i] {
+			return 1
+		}
+	}
+	if len(a) < len(b) {
+		return -1
+	}
+	if len(a) > len(b) {
+		return 1
+	}
+	return 0
 }

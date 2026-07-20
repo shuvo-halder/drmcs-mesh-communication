@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/drmcs/backend/api"
 	"github.com/drmcs/backend/internal/alerts"
 	"github.com/drmcs/backend/internal/crypto"
 	"github.com/drmcs/backend/internal/discovery"
@@ -54,7 +55,7 @@ func main() {
 	}
 	defer listener.Close()
 
-	discoveryService := discovery.NewService(*nodeName, discoveryPort, cryptoKey.PublicKey)
+	discoveryService := discovery.NewService(*nodeName, discoveryPort, cryptoKey.PublicKey, cryptoKey.PrivateKey)
 	go discoveryService.Start(listener)
 
 	// Initialize messaging
@@ -69,8 +70,12 @@ func main() {
 	fileTransfer := fileshare.NewTransfer(*nodeName, store, cryptoKey.PrivateKey)
 	go fileTransfer.Start(*port + 2)
 
-	log.Printf("DRMCS Node '%s' started on port %d (discovery: %d, files: %d)",
-		*nodeName, *port, discoveryPort, *port+2)
+	// Initialize API server
+	apiServer := api.NewServer(store, discoveryService.GetNodeID(), discoveryService, msgHandler, alertSystem, fileTransfer, router)
+	go apiServer.Start(*port)
+
+	log.Printf("DRMCS Node '%s' started on port %d (discovery: %d, files: %d, api: %d)",
+		*nodeName, *port, discoveryPort, *port+2, *port)
 	log.Printf("Public key: %x...", cryptoKey.PublicKey[:8])
 
 	// Print node info
@@ -89,6 +94,7 @@ func main() {
 	msgHandler.Stop()
 	alertSystem.Stop()
 	fileTransfer.Stop()
+	apiServer.Stop()
 	log.Println("Shutdown complete.")
 }
 

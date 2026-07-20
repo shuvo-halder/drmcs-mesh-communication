@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/drmcs/backend/internal/alerts"
@@ -28,6 +28,8 @@ type Server struct {
 	fileTransfer *fileshare.Transfer
 	router       *routing.Router
 	httpServer   *http.Server
+	wsClients    map[chan []byte]bool
+	wsMu         sync.RWMutex
 }
 
 // NewServer creates a new API server
@@ -43,6 +45,7 @@ func NewServer(store *storage.SQLiteStore, nodeID string, discoverySvc *discover
 		alertSys:     alertSys,
 		fileTransfer: fileTransfer,
 		router:       router,
+		wsClients:    make(map[chan []byte]bool),
 	}
 }
 
@@ -72,6 +75,9 @@ func (s *Server) Start(port int) {
 
 	// Analytics endpoints
 	mux.HandleFunc("/api/v1/analytics", s.handleGetAnalytics)
+
+	// WebSocket endpoint
+	mux.HandleFunc("/api/v1/ws", s.handleWebSocket)
 
 	// Health check
 	mux.HandleFunc("/api/v1/health", s.handleHealth)
@@ -321,6 +327,71 @@ func (s *Server) handleGetAnalytics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	json.NewEncoder(w).Encode(data)
+}
+
+func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	// Simple SSE (Server-Sent Events) for real-time updates, no external deps needed
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	ch := make(chan []byte, 64)
+	s.wsMu.Lock()
+	s.wsClients[ch] = true
+	s.wsMu.Unlock()
+
+	// Send initial data
+	initialData, _ := json.Marshal(map[string]interface{}{
+		"type":    "init",
+		"node_id": s.nodeID,
+	})
+	fmt.Fprintf(w, "data: %s\n\n", initialData)
+	flusher.Flush()
+
+	notify := r.Context().Done()
+	for {
+		select {
+		case <-notify:
+			s.wsMu.Lock()
+			delete(s.wsClients, ch)
+			s.wsMu.Unlock()
+			close(ch)
+			return
+		case data := <-ch:
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+		}
+	}
+}
+
+// BroadcastEvent sends an event to all connected WebSocket clients
+func (s *Server) BroadcastEvent(eventType string, data interface{}) {
+	payload, err := json.Marshal(map[string]interface{}{
+		"type": eventType,
+		"data": data,
+		"time": time.Now().Unix(),
+	})
+	if err != nil {
+		return
+	}
+
+	s.wsMu.RLock()
+	defer s.wsMu.RUnlock()
+
+	for ch := range s.wsClients {
+		select {
+		case ch <- payload:
+		default:
+			// Skip slow clients
+		}
+	}
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
