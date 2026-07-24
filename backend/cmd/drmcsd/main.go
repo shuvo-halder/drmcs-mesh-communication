@@ -30,6 +30,11 @@ func main() {
 		*nodeName = hostname
 	}
 
+	// Ensure data directory exists before creating the database
+	if err := os.MkdirAll(*dataDir, 0755); err != nil {
+		log.Fatalf("Failed to create data directory %s: %v", *dataDir, err)
+	}
+
 	// Initialize encryption
 	cryptoKey, err := crypto.GenerateKeyPair()
 	if err != nil {
@@ -58,9 +63,9 @@ func main() {
 	discoveryService := discovery.NewService(*nodeName, discoveryPort, cryptoKey.PublicKey, cryptoKey.PrivateKey)
 	go discoveryService.Start(listener)
 
-	// Initialize messaging
+	// Initialize messaging (uses a separate port from the API server)
 	msgHandler := messaging.NewHandler(*nodeName, router, cryptoKey.PrivateKey, store)
-	go msgHandler.Start(*port)
+	go msgHandler.Start(*port + 3)
 
 	// Initialize alerts
 	alertSystem := alerts.NewSystem(*nodeName, msgHandler, store)
@@ -74,8 +79,8 @@ func main() {
 	apiServer := api.NewServer(store, discoveryService.GetNodeID(), discoveryService, msgHandler, alertSystem, fileTransfer, router)
 	go apiServer.Start(*port)
 
-	log.Printf("DRMCS Node '%s' started on port %d (discovery: %d, files: %d, api: %d)",
-		*nodeName, *port, discoveryPort, *port+2, *port)
+	log.Printf("DRMCS Node '%s' started on port %d (discovery: %d, files: %d, messaging: %d, api: %d)",
+		*nodeName, *port, discoveryPort, *port+2, *port+3, *port)
 	log.Printf("Public key: %x...", cryptoKey.PublicKey[:8])
 
 	// Print node info

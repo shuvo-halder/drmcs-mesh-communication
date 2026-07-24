@@ -223,10 +223,10 @@ function App() {
       ]);
 
       if (nodeRes.status === 'fulfilled') setNodeInfo(nodeRes.value.data);
-      if (peersRes.status === 'fulfilled') setPeers(peersRes.value.data);
-      if (msgsRes.status === 'fulfilled') setMessages(msgsRes.value.data);
-      if (alertsRes.status === 'fulfilled') setAlerts(alertsRes.value.data);
-      if (routesRes.status === 'fulfilled') setRoutes(routesRes.value.data);
+      if (peersRes.status === 'fulfilled') setPeers(Array.isArray(peersRes.value.data) ? peersRes.value.data : []);
+      if (msgsRes.status === 'fulfilled') setMessages(Array.isArray(msgsRes.value.data) ? msgsRes.value.data : []);
+      if (alertsRes.status === 'fulfilled') setAlerts(Array.isArray(alertsRes.value.data) ? alertsRes.value.data : []);
+      if (routesRes.status === 'fulfilled') setRoutes(Array.isArray(routesRes.value.data) ? routesRes.value.data : []);
       if (metricsRes.status === 'fulfilled') setMetrics(metricsRes.value.data);
     } catch (err) {
       console.error('Failed to fetch data:', err);

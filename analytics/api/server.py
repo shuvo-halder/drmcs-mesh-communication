@@ -3,6 +3,8 @@
 import asyncio
 import httpx
 import logging
+import sys
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import List, Dict, Optional
@@ -11,12 +13,19 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from ..models.models import (
+# Ensure the project root (parent of analytics/) is on sys.path for absolute imports
+# This allows `python -m api.server` from the analytics/ directory to work
+_pkg_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_project_root = os.path.dirname(_pkg_root)
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+
+from analytics.models.models import (
     AnalyticsData, NetworkMetrics, TopologyNode,
     TopologyEdge, TopologyGraph, PerformanceReport
 )
-from ..collectors.metrics_collector import MetricsCollector
-from ..visualization.graph import TopologyVisualizer
+from analytics.collectors.metrics_collector import MetricsCollector
+from analytics.visualization.graph import TopologyVisualizer
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
